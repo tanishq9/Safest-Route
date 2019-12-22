@@ -29,6 +29,7 @@ import cn.pedant.SweetAlert.SweetAlertDialog;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.FormBody;
+import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
@@ -47,6 +48,8 @@ public class MainActivity extends AppCompatActivity {
     String destinationLong = "NaN";
     ArrayList<Loc> arrayList;
     LocationAdapter locationAdapter;
+    Button generate, convert;
+    String myResponse = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,6 +61,8 @@ public class MainActivity extends AppCompatActivity {
         source = findViewById(R.id.source);
         destination = findViewById(R.id.destination);
         button = findViewById(R.id.get);
+        generate = findViewById(R.id.generate);
+        convert = findViewById(R.id.convert);
 
         source.addTextChangedListener(new TextWatcher() {
             @Override
@@ -141,7 +146,7 @@ public class MainActivity extends AppCompatActivity {
 
                         @Override
                         public void onResponse(Call call, Response response) throws IOException {
-                            final String myResponse = response.body().string();
+                            myResponse = response.body().string();
                             Log.e("RESPONSE", myResponse);
                             try {
                                 JSONArray jsonArray = new JSONArray(myResponse);
@@ -191,6 +196,63 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+
+        generate.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+
+                progressDialog = new ProgressDialog(MainActivity.this);
+                progressDialog.setTitle("Fetching Travel Route");
+                progressDialog.setMessage("Please Wait ...");
+                // progressDialog.setCancelable(false);
+                progressDialog.show();
+
+
+                OkHttpClient.Builder okhttpBuilder = new OkHttpClient.Builder();
+                okhttpBuilder.connectTimeout(10, TimeUnit.MINUTES) // connect timeout
+                        .writeTimeout(10, TimeUnit.MINUTES) // write timeout
+                        .readTimeout(10, TimeUnit.MINUTES); // read timeout
+
+                OkHttpClient client = okhttpBuilder.build();
+
+                RequestBody request_body = new MultipartBody.Builder()
+                        .setType(MultipartBody.FORM)
+                        .addFormDataPart("type", "multipart/form-data")
+                        .addFormDataPart("height", "400")
+                        .addFormDataPart("width", "400")
+                        .addFormDataPart("polyline", myResponse)
+                        .addFormDataPart("license_key", "fxs1vleongo2371f3mcb4jsjn21ii73x")
+                        .build();
+
+                
+                Request request = new Request.Builder()
+                        .url("http://apis.mapmyindia.com/advancedmaps/v1/fxs1vleongo2371f3mcb4jsjn21ii73x/still_image_polyline?")
+                        .post(request_body)
+                        .build();
+
+                client.newCall(request).enqueue(new Callback() {
+                    @Override
+                    public void onFailure(Call call, IOException e) {
+                        progressDialog.dismiss();
+                    }
+
+                    @Override
+                    public void onResponse(Call call, Response response) throws IOException {
+                        Log.e("IMAGE", response.toString());
+                        progressDialog.dismiss();
+                    }
+                });
+            }
+        });
+
+        convert.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                updateCoordinates();
+                Toast.makeText(MainActivity.this, "Updataed", Toast.LENGTH_SHORT).show();
+            }
+        });
+
     }
 
     private void updateCoordinates() {
