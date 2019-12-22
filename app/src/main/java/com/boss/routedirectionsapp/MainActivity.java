@@ -1,8 +1,12 @@
 package com.boss.routedirectionsapp;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import android.app.ProgressDialog;
+import android.content.DialogInterface;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -10,14 +14,18 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
 import android.view.View;
-import android.webkit.WebView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 
+import cn.pedant.SweetAlert.SweetAlertDialog;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.FormBody;
@@ -28,8 +36,8 @@ import okhttp3.Response;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final String IP = "http://10.104.202.6:3344";
-    private static final String Safest = "/map_get";
+    private static final String IP = "https://stark-temple-37550.herokuapp.com";
+    private static final String Safest = "/map";
     EditText source, destination;
     Button button;
     ProgressDialog progressDialog;
@@ -37,12 +45,16 @@ public class MainActivity extends AppCompatActivity {
     String sourceLong = "NaN";
     String destinationLat = "NaN";
     String destinationLong = "NaN";
+    ArrayList<Loc> arrayList;
+    LocationAdapter locationAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         setContentView(R.layout.activity_main);
+
+        arrayList = new ArrayList<>();
+
         source = findViewById(R.id.source);
         destination = findViewById(R.id.destination);
         button = findViewById(R.id.get);
@@ -60,7 +72,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void afterTextChanged(Editable editable) {
-                updateCoordinates();
+
             }
         });
 
@@ -77,7 +89,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void afterTextChanged(Editable editable) {
-                updateCoordinates();
+
             }
         });
 
@@ -85,7 +97,10 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
 
+                updateCoordinates();
+
                 if (!source.getText().toString().equals("") && !destination.getText().toString().equals("")) {
+
                     progressDialog = new ProgressDialog(MainActivity.this);
                     progressDialog.setTitle("Fetching Safest Route");
                     progressDialog.setMessage("Please Wait ...");
@@ -113,7 +128,7 @@ public class MainActivity extends AppCompatActivity {
 
                     Request request = new Request.Builder()
                             .url(IP + Safest)
-                            //.post(requestBody)
+                            .post(requestBody)
                             .build();
 
                     client.newCall(request).enqueue(new Callback() {
@@ -128,6 +143,46 @@ public class MainActivity extends AppCompatActivity {
                         public void onResponse(Call call, Response response) throws IOException {
                             final String myResponse = response.body().string();
                             Log.e("RESPONSE", myResponse);
+                            try {
+                                JSONArray jsonArray = new JSONArray(myResponse);
+                                for (int i = 0; i < jsonArray.length(); i++) {
+                                    String[] strs = jsonArray.get(i).toString().split(",");
+                                    Loc loc = new Loc("Latitude : " + strs[0].substring(1), "Longitude : " + strs[1].substring(0, strs[1].length() - 1));
+                                    arrayList.add(loc);
+                                    Log.e("V1", strs[0].substring(1));
+                                    Log.e("V2", strs[1].substring(0, strs[1].length() - 1));
+                                }
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        locationAdapter = new LocationAdapter(arrayList);
+                                        // inflate dialog box
+                                        final View answerView = getLayoutInflater().inflate(R.layout.dialog_layout, null, false);
+                                        RecyclerView answerRecyclerView = answerView.findViewById(R.id.rv);
+                                        answerRecyclerView.setAdapter(locationAdapter);
+                                        answerRecyclerView.setLayoutManager(new LinearLayoutManager(MainActivity.this, LinearLayoutManager.VERTICAL, false));
+                                        // Alert Dialog Box
+                                        final AlertDialog.Builder alertAnswer = new AlertDialog.Builder(MainActivity.this);
+                                        // this is set the view from XML inside AlertDialog
+                                        alertAnswer.setView(answerView);
+                                        alertAnswer.setTitle("WayPoints");
+                                        // disallow cancel of AlertDialog on click of back button and outside touch
+                                        alertAnswer.setCancelable(false);
+                                        alertAnswer.setNegativeButton("Ok", new DialogInterface.OnClickListener() {
+                                            @Override
+                                            public void onClick(DialogInterface dialog, int which) {
+                                                // Cancel implies user doesn't want to add questions
+                                                arrayList.clear();
+                                            }
+                                        });
+                                        final AlertDialog dialogAnswer = alertAnswer.create();
+                                        dialogAnswer.show();
+                                    }
+                                });
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+
                             progressDialog.dismiss();
                         }
                     });
@@ -163,12 +218,12 @@ public class MainActivity extends AppCompatActivity {
                     locationAddress = bundle.getString("address");
                     if (bundle.getString("sd") != null && bundle.getString("sd").equals("src")) {
                         String lines[] = locationAddress.split("\\r?\\n");
-                        sourceLat = lines[0];
-                        sourceLong = lines[1];
+                        sourceLat = lines[1];
+                        sourceLong = lines[0];
                     } else if (bundle.getString("sd") != null && bundle.getString("sd").equals("dest")) {
                         String lines[] = locationAddress.split("\\r?\\n");
-                        destinationLat = lines[0];
-                        destinationLong = lines[1];
+                        destinationLat = lines[1];
+                        destinationLong = lines[0];
                     }
                     break;
                 default:
